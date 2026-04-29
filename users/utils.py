@@ -1,9 +1,6 @@
 from users.models import AuditLog
 
 def log_action(user, action, resource, description, request=None):
-    """
-    记录审计日志
-    """
     if not user or not user.is_authenticated:
         return
     

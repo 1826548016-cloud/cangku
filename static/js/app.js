@@ -9,6 +9,9 @@ const recordList = document.getElementById("record-list");
 const homeRecordList = document.getElementById("home-record-list");
 const memberTable = document.getElementById("member-table");
 const auditLogTable = document.getElementById("audit-log-table");
+const memberCreateCard = document.getElementById("member-create-card");
+const memberMaxCount = document.getElementById("member-max-count");
+const memberCurrentCount = document.getElementById("member-current-count");
 const productSelect = document.getElementById("record-product");
 const warningProductSelect = document.getElementById("warning-product");
 const productForm = document.getElementById("product-form");
@@ -28,6 +31,7 @@ const refreshButtons = document.querySelectorAll(".refresh-page-btn");
 let currentRecordSearch = "";
 let currentPage = "home";
 let latestAnalytics = null;
+let currentProfile = null;
 const chartInstances = {};
 
 function getToken() {
@@ -441,7 +445,6 @@ async function refreshDashboard() {
         request("/api/analytics/"),
     ];
 
-    // 如果在账号管理页面，额外请求成员和日志
     if (currentPage === "accounts") {
         requests.push(request("/api/auth/team/subaccounts/"));
         requests.push(request("/api/auth/audit-logs/"));
@@ -470,8 +473,9 @@ async function refreshDashboard() {
             },
         };
 
-    document.getElementById("current-user").textContent = profile.value.user.username;
-    document.getElementById("current-team").textContent = `${profile.value.team.name} (${profile.value.team.code})`;
+    currentProfile = profile.value;
+    document.getElementById("current-user").textContent = currentProfile.user.username;
+    document.getElementById("current-team").textContent = `${currentProfile.team.name} (${currentProfile.team.code})`;
     document.getElementById("product-count").textContent = analytics.summary.product_count;
     document.getElementById("inventory-total").textContent = analytics.summary.inventory_total;
     document.getElementById("low-stock-count").textContent = analytics.summary.low_stock_count;
@@ -492,11 +496,27 @@ async function refreshDashboard() {
 }
 
 function renderAccounts(members, logs) {
+    const isAdmin = Boolean(currentProfile && currentProfile.is_team_admin);
+    if (memberCreateCard) {
+        memberCreateCard.classList.toggle("hidden", !isAdmin);
+    }
+    if (memberMaxCount && currentProfile && currentProfile.team) {
+        memberMaxCount.textContent = currentProfile.team.max_subaccounts ?? "-";
+    }
+    if (memberCurrentCount && currentProfile && currentProfile.team) {
+        memberCurrentCount.textContent = currentProfile.team.current_subaccounts ?? "-";
+    }
+
     memberTable.innerHTML = members.map(m => `
         <tr>
             <td>${m.username}</td>
-            <td>${m.is_superuser ? '<span class="badge danger">管理员</span>' : '<span class="badge info">成员</span>'}</td>
+            <td>${m.role === "ADMIN" ? '<span class="badge danger">管理员</span>' : '<span class="badge info">成员</span>'}</td>
             <td>${new Date(m.date_joined).toLocaleString()}</td>
+            <td>
+                ${isAdmin && m.role !== "ADMIN" && currentProfile && m.id !== currentProfile.user.id
+                    ? `<button class="danger-btn" onclick="deleteMember(${m.id}, '${m.username.replace(/'/g, "\\'")}')">删除</button>`
+                    : "-"}
+            </td>
         </tr>
     `).join("");
 
@@ -519,7 +539,23 @@ function getLogBadgeClass(action) {
     return '';
 }
 
-// 登录注册切换逻辑
+async function deleteMember(userId, username) {
+    if (!confirm(`确认删除账号“${username}”吗？`)) {
+        return;
+    }
+    try {
+        await request("/api/auth/team/subaccounts/", {
+            method: "DELETE",
+            body: JSON.stringify({ user_id: userId }),
+        });
+        await refreshDashboard();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+window.deleteMember = deleteMember;
+
 const authTabs = document.querySelectorAll(".auth-tab");
 const loginPanel = document.getElementById("login-panel");
 const registerPanel = document.getElementById("register-panel");
@@ -538,7 +574,6 @@ authTabs.forEach(tab => {
     });
 });
 
-// 注册表单提交逻辑
 document.getElementById("register-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const team_name = document.getElementById("reg-team-name").value;
@@ -552,9 +587,7 @@ document.getElementById("register-form").addEventListener("submit", async (event
             body: JSON.stringify({ team_name, team_code, username, password }),
         });
         alert("团队创建成功！请使用刚才的信息登录。");
-        // 自动切换到登录选项卡
         authTabs[0].click();
-        // 自动填充登录表单
         document.getElementById("login-team-code").value = team_code;
         document.getElementById("username").value = username;
     } catch (error) {
@@ -583,6 +616,22 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
         });
         setTokens(payload);
         setAuthState(true);
+        await refreshDashboard();
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+document.getElementById("member-create-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const username = document.getElementById("member-username").value;
+    const password = document.getElementById("member-password").value;
+    try {
+        await request("/api/auth/team/subaccounts/", {
+            method: "POST",
+            body: JSON.stringify({ username, password }),
+        });
+        event.target.reset();
         await refreshDashboard();
     } catch (error) {
         alert(error.message);

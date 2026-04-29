@@ -5,6 +5,14 @@ from django.db import models
 class Team(models.Model):
     name = models.CharField(max_length=64, unique=True, verbose_name="团队名称")
     code = models.CharField(max_length=32, unique=True, verbose_name="团队号")
+    admin_user = models.OneToOneField(
+        User,
+        on_delete=models.PROTECT,
+        related_name="admin_team",
+        null=True,
+        blank=True,
+        verbose_name="管理员",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -18,6 +26,12 @@ class Team(models.Model):
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     team = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="members", verbose_name="所属团队")
+    role = models.CharField(
+        max_length=16,
+        choices=[("ADMIN", "管理员"), ("MEMBER", "成员")],
+        default="MEMBER",
+        verbose_name="团队角色",
+    )
 
     class Meta:
         verbose_name = "用户资料"
@@ -65,4 +79,3 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.action} - {self.created_at}"
-

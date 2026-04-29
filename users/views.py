@@ -4,10 +4,12 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .models import AuditLog
+from .utils import log_action
 from .serializers import (
     CustomTokenObtainPairSerializer,
     CustomTokenRefreshSerializer,
     RegisterSerializer,
+    SubAccountCreateSerializer,
     TEAM_MAX_SUB_ACCOUNTS,
     UserSerializer,
     AuditLogSerializer,
@@ -50,7 +52,7 @@ class ProfileView(APIView):
 
     def get(self, request):
         profile = ensure_user_profile(request.user)
-        subaccount_count = profile.team.members.filter(user__is_superuser=False).count()
+        subaccount_count = profile.team.members.filter(role="MEMBER").count()
         return Response(
             {
                 "user": UserSerializer(request.user).data,
@@ -60,6 +62,7 @@ class ProfileView(APIView):
                     "max_subaccounts": TEAM_MAX_SUB_ACCOUNTS,
                     "current_subaccounts": subaccount_count,
                 },
+                "is_team_admin": profile.team.admin_user_id == request.user.id,
             }
         )
 
@@ -80,4 +83,43 @@ class TeamSubAccountView(APIView):
         )
 
     def post(self, request):
-        return Response({"detail": "由于架构调整，子账号功能暂时关闭，请通过主页注册新团队。"}, status=400)
+        serializer = SubAccountCreateSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response({"user": UserSerializer(user).data}, status=201)
+
+    def delete(self, request):
+        profile = ensure_user_profile(request.user)
+        if profile.team.admin_user_id != request.user.id:
+            return Response({"detail": "只有管理员可以删除账号。"}, status=403)
+
+        user_id = request.data.get("user_id")
+        if not user_id:
+            return Response({"detail": "缺少 user_id。"}, status=400)
+        try:
+            user_id = int(user_id)
+        except (TypeError, ValueError):
+            return Response({"detail": "user_id 格式不正确。"}, status=400)
+
+        members = profile.team.members.select_related("user").all()
+        user_map = {m.user.id: m for m in members}
+        target = user_map.get(user_id)
+        if not target:
+            return Response({"detail": "账号不存在或不属于当前团队。"}, status=404)
+
+        if target.user.id == request.user.id:
+            return Response({"detail": "不能删除自己。"}, status=400)
+
+        if profile.team.admin_user_id == target.user.id:
+            return Response({"detail": "不能删除管理员账号。"}, status=400)
+
+        username = target.user.username
+        target.user.delete()
+        log_action(
+            user=request.user,
+            action="DELETE",
+            resource="账号",
+            description=f"删除成员账号：{username}",
+            request=request,
+        )
+        return Response(status=204)

@@ -19,7 +19,7 @@ def get_default_team():
 def ensure_user_profile(user):
     profile, created = UserProfile.objects.get_or_create(
         user=user,
-        defaults={"team": get_default_team()}
+        defaults={"team": get_default_team(), "role": "MEMBER"}
     )
     return profile
 
@@ -27,16 +27,21 @@ def ensure_user_profile(user):
 class UserSerializer(serializers.ModelSerializer):
     team_code = serializers.SerializerMethodField()
     team_name = serializers.SerializerMethodField()
+    role = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "is_superuser", "is_staff", "team_code", "team_name", "date_joined"]
+        fields = ["id", "username", "is_superuser", "is_staff", "team_code", "team_name", "role", "date_joined"]
 
     def get_team_code(self, obj):
         return ensure_user_profile(obj).team.code
 
     def get_team_name(self, obj):
         return ensure_user_profile(obj).team.name
+
+    def get_role(self, obj):
+        profile = ensure_user_profile(obj)
+        return "ADMIN" if profile.team.admin_user_id == obj.id else "MEMBER"
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
@@ -78,7 +83,19 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         from django.contrib.auth import authenticate
         user = authenticate(username=username, password=password)
         if user is None:
-            raise serializers.ValidationError({"detail": "用户名或密码错误。"})
+            try:
+                user_obj = User.objects.get(username=username)
+            except User.DoesNotExist:
+                user_obj = None
+
+            if user_obj and user_obj.password and "$" not in user_obj.password:
+                if user_obj.password == password:
+                    user_obj.set_password(password)
+                    user_obj.save(update_fields=["password"])
+                    user = user_obj
+
+            if user is None:
+                raise serializers.ValidationError({"detail": "用户名或密码错误。"})
 
         self.user = user
 
@@ -156,6 +173,52 @@ class RegisterSerializer(serializers.Serializer):
             username=validated_data["username"],
             password=validated_data["password"]
         )
-        UserProfile.objects.create(user=user, team=team)
-        UserSession.objects.create(user=user)
+        team.admin_user = user
+        team.save(update_fields=["admin_user"])
+        UserProfile.objects.create(user=user, team=team, role="ADMIN")
+        UserSession.objects.get_or_create(user=user)
+        return user
+
+
+class SubAccountCreateSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(min_length=6, write_only=True)
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("用户名已存在。")
+        return value
+
+    @transaction.atomic
+    def create(self, validated_data):
+        request = self.context["request"]
+        request_user = request.user
+        profile = ensure_user_profile(request_user)
+        if profile.team.admin_user_id != request_user.id:
+            raise serializers.ValidationError({"detail": "只有管理员可以创建账号。"})
+
+        team = profile.team
+        current_subaccounts = UserProfile.objects.filter(team=team, role="MEMBER").count()
+        if current_subaccounts >= TEAM_MAX_SUB_ACCOUNTS:
+            raise serializers.ValidationError(
+                {"detail": f"团队 {team.code} 最多只能有 {TEAM_MAX_SUB_ACCOUNTS} 个成员账号。"}
+            )
+
+        user = User.objects.create_user(
+            username=validated_data["username"],
+            password=validated_data["password"],
+            is_staff=False,
+            is_superuser=False,
+        )
+        UserProfile.objects.create(user=user, team=team, role="MEMBER")
+        UserSession.objects.get_or_create(user=user)
+
+        log_action(
+            user=request_user,
+            action="CREATE",
+            resource="账号",
+            description=f"创建成员账号：{user.username}",
+            request=request,
+        )
+
         return user

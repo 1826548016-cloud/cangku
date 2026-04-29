@@ -41,7 +41,7 @@
                         <input type="password" id="password" placeholder="密码" required>
                         <button type="submit">登录</button>
                     </form>
-                    <p class="hint">登录成功后 Token 将保存到 localStorage。</p>
+                    <p class="hint">登录成功后可以查看数据。</p>
                 </div>
 
                 <div id="register-panel" class="hidden">
@@ -214,6 +214,16 @@
                     </div>
                     
                     <div class="grid forms single-page-grid">
+                        <section id="member-create-card" class="card hidden">
+                            <h3>创建成员账号</h3>
+                            <p class="hint">仅管理员可操作。团队成员上限：<strong id="member-max-count">-</strong>，当前成员：<strong id="member-current-count">-</strong></p>
+                            <form id="member-create-form">
+                                <input type="text" id="member-username" placeholder="成员用户名" required>
+                                <input type="password" id="member-password" placeholder="成员密码" required>
+                                <button type="submit">创建账号</button>
+                            </form>
+                        </section>
+
                         <section class="card">
                             <h3>团队成员</h3>
                             <div class="table-scroll">
@@ -223,6 +233,7 @@
                                             <th>用户名</th>
                                             <th>角色</th>
                                             <th>加入时间</th>
+                                            <th>操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="member-table"></tbody>
