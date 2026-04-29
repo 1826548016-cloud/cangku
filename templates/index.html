@@ -1,0 +1,195 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能仓库管理系统</title>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+    <div class="page">
+        <aside class="sidebar">
+            <div class="brand">
+                <h1>智能仓库管理系统</h1>
+                <p>商业数据禁止外传截屏</p>
+            </div>
+            <div class="sidebar-actions">
+                <nav class="nav-menu">
+                    <button type="button" class="nav-btn active" data-page="home">主页</button>
+                    <button type="button" class="nav-btn" data-page="products">商品管理</button>
+                    <button type="button" class="nav-btn" data-page="operations">库存操作</button>
+                    <button type="button" class="nav-btn" data-page="records">记录中心</button>
+                    <button type="button" class="nav-btn" data-page="analytics">数据分析</button>
+                </nav>
+                <button id="logout-btn" class="secondary-btn">退出登录</button>
+            </div>
+        </aside>
+        <main class="content">
+            <section id="login-card" class="card auth-card">
+                <h2>JWT 登录</h2>
+                <form id="login-form">
+                    <input type="text" id="username" placeholder="用户名" required>
+                    <input type="password" id="password" placeholder="密码" required>
+                    <button type="submit">登录</button>
+                </form>
+                <p class="hint">登录成功后 Token 将保存到 localStorage。</p>
+            </section>
+
+            <section id="dashboard" class="hidden">
+                <section class="page-panel active" data-page="home">
+                    <div class="panel-toolbar">
+                        <button type="button" class="secondary-btn refresh-page-btn">刷新本页</button>
+                    </div>
+                    <div class="hero-card card">
+                        <div>
+                            <p class="eyebrow">仓库总览</p>
+                            <h2>欢迎使用智能仓库管理系统</h2>
+                            <p>商业数据禁止外传截屏</p>
+                            <p class="hint">从主页快速进入各功能页面，所有数据实时互通。</p>
+                        </div>
+                        <div class="hero-user">当前登录：<strong id="current-user">-</strong></div>
+                    </div>
+
+                    <div class="grid stats">
+                        <div class="card"><span>商品数</span><strong id="product-count">0</strong></div>
+                        <div class="card"><span>库存总量</span><strong id="inventory-total">0</strong></div>
+                        <div class="card"><span>低库存预警</span><strong id="low-stock-count">0</strong></div>
+                        <div class="card"><span>最近记录</span><strong id="record-count">0</strong></div>
+                    </div>
+
+                    <div class="feature-grid">
+                        <button type="button" class="feature-card card" data-page-target="products">
+                            <strong>商品管理</strong>
+                            <span>新增、修改、删除商品信息</span>
+                        </button>
+                        <button type="button" class="feature-card card" data-page-target="operations">
+                            <strong>库存操作</strong>
+                            <span>快速入库、出库、调整预警值</span>
+                        </button>
+                        <button type="button" class="feature-card card" data-page-target="records">
+                            <strong>记录中心</strong>
+                            <span>查询记录并导出正式 PDF 报表</span>
+                        </button>
+                        <button type="button" class="feature-card card" data-page-target="analytics">
+                            <strong>数据分析</strong>
+                            <span>查看趋势图和热销商品排行</span>
+                        </button>
+                    </div>
+
+                    <section class="card">
+                        <h3>最近出入库记录</h3>
+                        
+                        <ul id="home-record-list" class="record-list"></ul>
+                    </section>
+                </section>
+
+                <section class="page-panel hidden" data-page="products">
+                    <div class="panel-toolbar">
+                        <button type="button" class="secondary-btn refresh-page-btn">刷新本页</button>
+                    </div>
+                    <div class="grid forms single-page-grid">
+                        <section class="card">
+                            <h3 id="product-form-title">添加商品</h3>
+                            <form id="product-form">
+                                <input type="hidden" name="product_id" id="product-id">
+                                <input type="text" name="name" placeholder="商品名称" required>
+                                <input type="text" name="sku" placeholder="SKU" required>
+                                <input type="text" name="category" placeholder="分类">
+                                <input type="number" name="price" step="0.01" min="0" placeholder="单价" required>
+                                <input type="file" name="image" id="product-image" accept="image/*">
+                                <img id="product-image-preview" class="product-image-preview hidden" alt="商品图片预览">
+                                <button type="submit" id="product-submit-btn">保存商品</button>
+                                <button type="button" id="product-cancel-btn" class="secondary-btn hidden">取消编辑</button>
+                            </form>
+                        </section>
+                        <section class="card">
+                            <h3>商品与库存</h3>
+                            <div class="table-scroll desktop-only">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>图片</th>
+                                            <th>商品</th>
+                                            <th>SKU</th>
+                                            <th>分类</th>
+                                            <th>单价</th>
+                                            <th>库存</th>
+                                            <th>预警值</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="product-table"></tbody>
+                                </table>
+                            </div>
+                            <div id="product-card-list" class="product-card-list mobile-only"></div>
+                        </section>
+                    </div>
+                </section>
+
+                <section class="page-panel hidden" data-page="operations">
+                    <div class="panel-toolbar">
+                        <button type="button" class="secondary-btn refresh-page-btn">刷新本页</button>
+                    </div>
+                    <div class="grid forms">
+                        <section class="card">
+                            <h3>库存操作</h3>
+                            <form id="record-form">
+                                <select id="record-type">
+                                    <option value="stockin">入库</option>
+                                    <option value="stockout">出库</option>
+                                </select>
+                                <select id="record-product" required></select>
+                                <input type="number" id="record-quantity" min="1" placeholder="数量" required>
+                                <input type="text" id="record-note" placeholder="备注">
+                                <button type="submit">提交记录</button>
+                            </form>
+                        </section>
+                        <section class="card">
+                            <h3>更新预警值</h3>
+                            <form id="warning-form">
+                                <select id="warning-product" required></select>
+                                <input type="number" id="warning-level" min="0" placeholder="预警值" required>
+                                <button type="submit">更新</button>
+                            </form>
+                        </section>
+                    </div>
+                </section>
+
+                <section class="page-panel hidden" data-page="records">
+                    <div class="panel-toolbar">
+                        <button type="button" class="secondary-btn refresh-page-btn">刷新本页</button>
+                    </div>
+                    <section class="card">
+                        <h3>出入库记录中心</h3>
+                        <p class="hint">删除记录会自动回滚库存，支持按 SKU、名称、备注查询。</p>
+                        <input type="text" id="record-search" placeholder="按 SKU、商品名称、备注查询记录">
+                        <div class="export-actions">
+                            <button type="button" id="export-stockin-btn" class="edit-btn">导出入库 PDF</button>
+                            <button type="button" id="export-stockout-btn" class="secondary-btn export-btn">导出出库 PDF</button>
+                        </div>
+                        <ul id="record-list" class="record-list"></ul>
+                    </section>
+                </section>
+
+                <section class="page-panel hidden" data-page="analytics">
+                    <div class="panel-toolbar">
+                        <button type="button" class="secondary-btn refresh-page-btn">刷新本页</button>
+                    </div>
+                    <div class="grid charts">
+                        <section class="card"><h3>近 7 天出入库趋势</h3><div id="stockin-chart" class="chart"></div></section>
+                        <section class="card"><h3>库存与预警值对比</h3><div id="stockout-chart" class="chart"></div></section>
+                        <section class="card"><h3>分类库存占比</h3><div id="share-chart" class="chart"></div></section>
+                        <section class="card"><h3>热销商品排行</h3><div id="top-chart" class="chart"></div></section>
+                    </div>
+                </section>
+            </section>
+        </main>
+    </div>
+
+    <script src="{% static 'echarts/echarts.min.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="{% static 'utils/watermark.js' %}"></script>
+    <script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>
