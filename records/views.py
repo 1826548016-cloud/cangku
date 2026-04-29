@@ -104,7 +104,21 @@ class StockInViewSet(
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return filter_records(StockIn.objects.all(), self.request.query_params.get("search", "").strip())
+        user = self.request.user
+        if not user.is_authenticated:
+            return StockIn.objects.none()
+        profile = getattr(user, "profile", None)
+        if not profile:
+            return StockIn.objects.none()
+        team = profile.team
+        return filter_records(
+            StockIn.objects.filter(product__team=team).all(),
+            self.request.query_params.get("search", "").strip()
+        )
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(created_by=user)
 
     @transaction.atomic
     def destroy(self, request, *args, **kwargs):
@@ -128,7 +142,21 @@ class StockOutViewSet(
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return filter_records(StockOut.objects.all(), self.request.query_params.get("search", "").strip())
+        user = self.request.user
+        if not user.is_authenticated:
+            return StockOut.objects.none()
+        profile = getattr(user, "profile", None)
+        if not profile:
+            return StockOut.objects.none()
+        team = profile.team
+        return filter_records(
+            StockOut.objects.filter(product__team=team).all(),
+            self.request.query_params.get("search", "").strip()
+        )
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        serializer.save(created_by=user)
 
     @transaction.atomic
     def destroy(self, request, *args, **kwargs):
@@ -144,7 +172,17 @@ class StockInPDFExportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        records = filter_records(StockIn.objects.all(), request.query_params.get("search", "").strip())
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "未认证"}, status=401)
+        profile = getattr(user, "profile", None)
+        if not profile:
+            return Response({"detail": "用户无团队信息"}, status=400)
+        team = profile.team
+        records = filter_records(
+            StockIn.objects.filter(product__team=team).all(),
+            request.query_params.get("search", "").strip()
+        )
         return build_pdf_response("入库记录报表", records)
 
 
@@ -152,5 +190,15 @@ class StockOutPDFExportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        records = filter_records(StockOut.objects.all(), request.query_params.get("search", "").strip())
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "未认证"}, status=401)
+        profile = getattr(user, "profile", None)
+        if not profile:
+            return Response({"detail": "用户无团队信息"}, status=400)
+        team = profile.team
+        records = filter_records(
+            StockOut.objects.filter(product__team=team).all(),
+            request.query_params.get("search", "").strip()
+        )
         return build_pdf_response("出库记录报表", records)

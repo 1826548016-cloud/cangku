@@ -459,6 +459,7 @@ async function refreshDashboard() {
         };
 
     document.getElementById("current-user").textContent = profile.value.user.username;
+    document.getElementById("current-team").textContent = `${profile.value.team.name} (${profile.value.team.code})`;
     document.getElementById("product-count").textContent = analytics.summary.product_count;
     document.getElementById("inventory-total").textContent = analytics.summary.inventory_total;
     document.getElementById("low-stock-count").textContent = analytics.summary.low_stock_count;
@@ -475,12 +476,22 @@ async function refreshDashboard() {
 
 document.getElementById("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    const username = document.getElementById("username").value;
-    const password = document.getElementById("password").value;
+    const teamCodeInput = document.getElementById("login-team-code");
+    const usernameInput = document.getElementById("username");
+    const passwordInput = document.getElementById("password");
+    
+    const team_code = teamCodeInput ? teamCodeInput.value : "";
+    const username = usernameInput ? usernameInput.value : "";
+    const password = passwordInput ? passwordInput.value : "";
+
     try {
         const payload = await request("/api/auth/login/", {
             method: "POST",
-            body: JSON.stringify({ username, password }),
+            body: JSON.stringify({
+                "team_code": team_code,
+                "username": username,
+                "password": password
+            }),
         });
         setTokens(payload);
         setAuthState(true);

@@ -39,6 +39,8 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    team_code = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
@@ -48,20 +50,44 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     @transaction.atomic
     def validate(self, attrs):
-        data = super().validate(attrs)
-        user = self.user
+        team_code = attrs.get("team_code")
+        username = attrs.get("username")
+        password = attrs.get("password")
+        
+        if not team_code:
+            raise serializers.ValidationError({"team_code": ["该字段是必填项。"]})
 
-        ensure_user_profile(user)
+        # 1. 验证团队是否存在
+        try:
+            team = Team.objects.get(code=team_code)
+        except Team.DoesNotExist:
+            raise serializers.ValidationError({"detail": "团队号不存在。"})
+
+        # 2. 验证用户名和密码
+        from django.contrib.auth import authenticate
+        user = authenticate(username=username, password=password)
+        if user is None:
+            raise serializers.ValidationError({"detail": "用户名或密码错误。"})
+
+        self.user = user
+
+        # 3. 验证用户是否属于该团队
+        profile = ensure_user_profile(user)
+        if profile.team != team:
+            raise serializers.ValidationError({"detail": f"用户不属于团队 {team_code}。"})
+
+        # 4. 生成 Token 和 Session
         session_state, _ = UserSession.objects.select_for_update().get_or_create(user=user)
         session_state.session_version += 1
         session_state.save(update_fields=["session_version", "updated_at"])
 
-        # 更新 token 中的 session_version
         refresh = self.get_token(user)
-        data["refresh"] = str(refresh)
-        data["access"] = str(refresh.access_token)
-        data["user"] = UserSerializer(user).data
-        return data
+        
+        return {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "user": UserSerializer(user).data,
+        }
 
 
 class CustomTokenRefreshSerializer(TokenRefreshSerializer):

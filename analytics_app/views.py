@@ -8,20 +8,31 @@ from rest_framework.views import APIView
 
 from inventory.models import Inventory
 from records.models import StockIn, StockOut
+from users.serializers import ensure_user_profile
 
 
 class AnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "未认证"}, status=401)
+        profile = ensure_user_profile(user)
+        team = profile.team
+
         trend_map = {}
         today = timezone.localdate()
         for offset in range(6, -1, -1):
             day = today - timedelta(days=offset)
             trend_map[day.isoformat()] = {"day": day.isoformat(), "stockin": 0, "stockout": 0}
 
-        stockin_records = list(StockIn.objects.only("created_at", "quantity"))
-        stockout_records = list(StockOut.objects.only("created_at", "quantity"))
+        stockin_records = list(
+            StockIn.objects.filter(product__team=team).only("created_at", "quantity")
+        )
+        stockout_records = list(
+            StockOut.objects.filter(product__team=team).only("created_at", "quantity")
+        )
 
         stockin_totals = {}
         stockout_totals = {}
@@ -47,24 +58,31 @@ class AnalyticsView(APIView):
         trend_comparison = list(trend_map.values())
 
         category_share = list(
-            Inventory.objects.select_related("product")
+            Inventory.objects.filter(product__team=team)
+            .select_related("product")
             .values("product__category")
             .annotate(total=Sum("quantity"))
             .order_by("-total")
         )
         top_products = list(
-            StockOut.objects.values("product__name")
+            StockOut.objects.filter(product__team=team)
+            .values("product__name")
             .annotate(total=Sum("quantity"))
             .order_by("-total")[:5]
         )
         inventory_status = list(
-            Inventory.objects.values("product__name", "quantity", "warning_level")
+            Inventory.objects.filter(product__team=team)
+            .values("product__name", "quantity", "warning_level")
             .order_by("-quantity")[:6]
         )
         zero_inventory_products = list(
-            Inventory.objects.select_related("product").filter(quantity__lte=0).values("product__name")
+            Inventory.objects.filter(product__team=team, quantity__lte=0)
+            .select_related("product")
+            .values("product__name")
         )
-        inventory_list = list(Inventory.objects.select_related("product").all())
+        inventory_list = list(
+            Inventory.objects.filter(product__team=team).select_related("product").all()
+        )
         low_stock_items = [item for item in inventory_list if item.is_low_stock]
 
         return Response(
