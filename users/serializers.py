@@ -5,7 +5,8 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Team, UserProfile, UserSession
+from .models import Team, UserProfile, UserSession, AuditLog
+from .utils import log_action
 
 TEAM_MAX_SUB_ACCOUNTS = 3
 
@@ -29,13 +30,23 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "is_superuser", "is_staff", "team_code", "team_name"]
+        fields = ["id", "username", "is_superuser", "is_staff", "team_code", "team_name", "date_joined"]
 
     def get_team_code(self, obj):
         return ensure_user_profile(obj).team.code
 
     def get_team_name(self, obj):
         return ensure_user_profile(obj).team.name
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source="user.username", read_only=True)
+    action_display = serializers.CharField(source="get_action_display", read_only=True)
+
+    class Meta:
+        model = AuditLog
+        fields = ["id", "username", "action", "action_display", "resource", "description", "ip_address", "created_at"]
+
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -83,6 +94,15 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         refresh = self.get_token(user)
         
+        # 记录登录日志
+        log_action(
+            user=user,
+            action='LOGIN',
+            resource='系统',
+            description=f'用户 {user.username} 登录团队 {team.code}',
+            request=self.context.get('request')
+        )
+        
         return {
             "refresh": str(refresh),
             "access": str(refresh.access_token),
@@ -110,34 +130,32 @@ class CustomTokenRefreshSerializer(TokenRefreshSerializer):
         return data
 
 
-class SubAccountCreateSerializer(serializers.Serializer):
+class RegisterSerializer(serializers.Serializer):
+    team_name = serializers.CharField(max_length=64)
+    team_code = serializers.CharField(max_length=32)
     username = serializers.CharField(max_length=150)
     password = serializers.CharField(min_length=6, write_only=True)
+
+    def validate_team_code(self, value):
+        if Team.objects.filter(code=value).exists():
+            raise serializers.ValidationError("团队号已存在。")
+        return value
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("用户名已存在。")
         return value
 
+    @transaction.atomic
     def create(self, validated_data):
-        request_user = self.context["request"].user
-        profile = ensure_user_profile(request_user)
-        team = profile.team
-
-        current_subaccounts = (
-            User.objects.filter(profile__team=team, is_superuser=False).count()
+        team = Team.objects.create(
+            name=validated_data["team_name"],
+            code=validated_data["team_code"]
         )
-        if current_subaccounts >= TEAM_MAX_SUB_ACCOUNTS:
-            raise serializers.ValidationError(
-                {"detail": f"团队 {team.code} 最多只能有 {TEAM_MAX_SUB_ACCOUNTS} 个子账号。"}
-            )
-
         user = User.objects.create_user(
             username=validated_data["username"],
-            password=validated_data["password"],
-            is_staff=False,
-            is_superuser=False,
+            password=validated_data["password"]
         )
         UserProfile.objects.create(user=user, team=team)
-        UserSession.objects.get_or_create(user=user)
+        UserSession.objects.create(user=user)
         return user

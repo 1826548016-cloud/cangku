@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from inventory.models import Inventory
+from users.utils import log_action
 from .models import StockIn, StockOut
 from .serializers import StockInSerializer, StockOutSerializer
 
@@ -118,17 +119,21 @@ class StockInViewSet(
 
     def perform_create(self, serializer):
         user = self.request.user
-        serializer.save(created_by=user)
+        record = serializer.save(created_by=user)
+        log_action(user, 'STOCK_IN', '入库', f'商品 {record.product.name} 入库 {record.quantity}', self.request)
 
     @transaction.atomic
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        product_name = instance.product.name
+        quantity = instance.quantity
         inventory, _ = Inventory.objects.get_or_create(product=instance.product)
         if inventory.quantity < instance.quantity:
             return Response({"detail": "当前库存不足，无法删除该入库记录。"}, status=400)
         inventory.quantity -= instance.quantity
         inventory.save(update_fields=["quantity", "updated_at"])
         instance.delete()
+        log_action(request.user, 'DELETE', '入库记录', f'删除入库记录: {product_name} 数量 {quantity}', request)
         return Response(status=204)
 
 
@@ -156,15 +161,19 @@ class StockOutViewSet(
 
     def perform_create(self, serializer):
         user = self.request.user
-        serializer.save(created_by=user)
+        record = serializer.save(created_by=user)
+        log_action(user, 'STOCK_OUT', '出库', f'商品 {record.product.name} 出库 {record.quantity}', self.request)
 
     @transaction.atomic
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        product_name = instance.product.name
+        quantity = instance.quantity
         inventory, _ = Inventory.objects.get_or_create(product=instance.product)
         inventory.quantity += instance.quantity
         inventory.save(update_fields=["quantity", "updated_at"])
         instance.delete()
+        log_action(request.user, 'DELETE', '出库记录', f'删除出库记录: {product_name} 数量 {quantity}', request)
         return Response(status=204)
 
 

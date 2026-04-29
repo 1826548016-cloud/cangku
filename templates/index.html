@@ -21,20 +21,40 @@
                     <button type="button" class="nav-btn" data-page="operations">库存操作</button>
                     <button type="button" class="nav-btn" data-page="records">记录中心</button>
                     <button type="button" class="nav-btn" data-page="analytics">数据分析</button>
+                    <button type="button" class="nav-btn" data-page="accounts">账号管理</button>
                 </nav>
                 <button id="logout-btn" class="secondary-btn">退出登录</button>
             </div>
         </aside>
         <main class="content">
             <section id="login-card" class="card auth-card">
-                <h2>JWT 登录</h2>
-                <form id="login-form">
-                    <input type="text" id="login-team-code" placeholder="团队号" required>
-                    <input type="text" id="username" placeholder="用户名" required>
-                    <input type="password" id="password" placeholder="密码" required>
-                    <button type="submit">登录</button>
-                </form>
-                <p class="hint">登录后即可访问所有功能页面</p>
+                <div class="auth-tabs">
+                    <button type="button" class="auth-tab active" data-tab="login">登录</button>
+                    <button type="button" class="auth-tab" data-tab="register">注册新团队</button>
+                </div>
+
+                <div id="login-panel">
+                    <h2>团队登录</h2>
+                    <form id="login-form">
+                        <input type="text" id="login-team-code" placeholder="团队号" required>
+                        <input type="text" id="username" placeholder="用户名" required>
+                        <input type="password" id="password" placeholder="密码" required>
+                        <button type="submit">登录</button>
+                    </form>
+                    <p class="hint">登录成功后 Token 将保存到 localStorage。</p>
+                </div>
+
+                <div id="register-panel" class="hidden">
+                    <h2>创建新团队</h2>
+                    <form id="register-form">
+                        <input type="text" id="reg-team-name" placeholder="团队名称 (如: 某某百货)" required>
+                        <input type="text" id="reg-team-code" placeholder="自定义团队号 (唯一标识)" required>
+                        <input type="text" id="reg-username" placeholder="管理员用户名" required>
+                        <input type="password" id="reg-password" placeholder="管理员密码" required>
+                        <button type="submit">立即创建</button>
+                    </form>
+                    <p class="hint">注册成功后，您将成为该团队的管理员。</p>
+                </div>
             </section>
 
             <section id="dashboard" class="hidden">
@@ -50,8 +70,8 @@
                             <p class="hint">从主页快速进入各功能页面，所有数据实时互通。</p>
                         </div>
                         <div class="hero-user">
-                            <div>当前团队：<strong id="current-team">-</strong></div>
-                            <div>当前登录：<strong id="current-user">-</strong></div>
+                            <div>当前团队账号：<strong id="current-team">-</strong></div>
+                            <div>当前登录用户：<strong id="current-user">-</strong></div>
                         </div>
                     </div>
 
@@ -187,12 +207,53 @@
                         <section class="card"><h3>热销商品排行</h3><div id="top-chart" class="chart"></div></section>
                     </div>
                 </section>
+
+                <section class="page-panel hidden" data-page="accounts">
+                    <div class="panel-toolbar">
+                        <button type="button" class="secondary-btn refresh-page-btn">刷新数据</button>
+                    </div>
+                    
+                    <div class="grid forms single-page-grid">
+                        <section class="card">
+                            <h3>团队成员</h3>
+                            <div class="table-scroll">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>用户名</th>
+                                            <th>角色</th>
+                                            <th>加入时间</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="member-table"></tbody>
+                                </table>
+                            </div>
+                        </section>
+
+                        <section class="card">
+                            <h3>最近操作日志 (TOP 100)</h3>
+                            <div class="table-scroll">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>时间</th>
+                                            <th>操作人</th>
+                                            <th>动作</th>
+                                            <th>对象</th>
+                                            <th>描述</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="audit-log-table"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+                </section>
             </section>
         </main>
     </div>
 
     <script src="{% static 'echarts/echarts.min.js' %}"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
     <script src="{% static 'utils/watermark.js' %}"></script>
     <script src="{% static 'js/app.js' %}"></script>
 </body>

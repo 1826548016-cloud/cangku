@@ -7,6 +7,8 @@ const productTable = document.getElementById("product-table");
 const productCardList = document.getElementById("product-card-list");
 const recordList = document.getElementById("record-list");
 const homeRecordList = document.getElementById("home-record-list");
+const memberTable = document.getElementById("member-table");
+const auditLogTable = document.getElementById("audit-log-table");
 const productSelect = document.getElementById("record-product");
 const warningProductSelect = document.getElementById("warning-product");
 const productForm = document.getElementById("product-form");
@@ -431,13 +433,23 @@ function renderCharts(analytics) {
 
 async function refreshDashboard() {
     const recordQuery = currentRecordSearch ? `?search=${encodeURIComponent(currentRecordSearch)}` : "";
-    const [profile, products, stockin, stockout, analyticsResult] = await Promise.allSettled([
+    const requests = [
         request("/api/auth/me/"),
         request("/api/products/"),
         request(`/api/records/stockin/${recordQuery}`),
         request(`/api/records/stockout/${recordQuery}`),
         request("/api/analytics/"),
-    ]);
+    ];
+
+    // 如果在账号管理页面，额外请求成员和日志
+    if (currentPage === "accounts") {
+        requests.push(request("/api/auth/team/subaccounts/"));
+        requests.push(request("/api/auth/audit-logs/"));
+    }
+
+    const results = await Promise.allSettled(requests);
+
+    const [profile, products, stockin, stockout, analyticsResult] = results;
 
     if (profile.status !== "fulfilled" || products.status !== "fulfilled" || stockin.status !== "fulfilled" || stockout.status !== "fulfilled") {
         const firstError = [profile, products, stockin, stockout].find((item) => item.status === "rejected");
@@ -466,13 +478,89 @@ async function refreshDashboard() {
 
     renderProducts(products.value);
     renderRecords(stockin.value, stockout.value);
+    
     if (currentPage === "analytics") {
         renderCharts(analytics);
+    } else if (currentPage === "accounts") {
+        const members = results[5].status === "fulfilled" ? results[5].value.members : [];
+        const logs = results[6].status === "fulfilled" ? results[6].value : [];
+        renderAccounts(members, logs);
     } else {
         latestAnalytics = analytics;
     }
     window.applyWatermark(profile.value.user.username);
 }
+
+function renderAccounts(members, logs) {
+    memberTable.innerHTML = members.map(m => `
+        <tr>
+            <td>${m.username}</td>
+            <td>${m.is_superuser ? '<span class="badge danger">管理员</span>' : '<span class="badge info">成员</span>'}</td>
+            <td>${new Date(m.date_joined).toLocaleString()}</td>
+        </tr>
+    `).join("");
+
+    auditLogTable.innerHTML = logs.map(log => `
+        <tr>
+            <td class="time-cell">${new Date(log.created_at).toLocaleString()}</td>
+            <td><strong>${log.username}</strong></td>
+            <td><span class="badge ${getLogBadgeClass(log.action)}">${log.action_display}</span></td>
+            <td>${log.resource}</td>
+            <td class="desc-cell">${log.description}</td>
+        </tr>
+    `).join("");
+}
+
+function getLogBadgeClass(action) {
+    if (action === 'DELETE') return 'danger';
+    if (action === 'CREATE') return 'success';
+    if (action === 'UPDATE') return 'warning';
+    if (action === 'LOGIN') return 'info';
+    return '';
+}
+
+// 登录注册切换逻辑
+const authTabs = document.querySelectorAll(".auth-tab");
+const loginPanel = document.getElementById("login-panel");
+const registerPanel = document.getElementById("register-panel");
+
+authTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+        authTabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        if (tab.dataset.tab === "login") {
+            loginPanel.classList.remove("hidden");
+            registerPanel.classList.add("hidden");
+        } else {
+            loginPanel.classList.add("hidden");
+            registerPanel.classList.remove("hidden");
+        }
+    });
+});
+
+// 注册表单提交逻辑
+document.getElementById("register-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const team_name = document.getElementById("reg-team-name").value;
+    const team_code = document.getElementById("reg-team-code").value;
+    const username = document.getElementById("reg-username").value;
+    const password = document.getElementById("reg-password").value;
+
+    try {
+        await request("/api/auth/register/", {
+            method: "POST",
+            body: JSON.stringify({ team_name, team_code, username, password }),
+        });
+        alert("团队创建成功！请使用刚才的信息登录。");
+        // 自动切换到登录选项卡
+        authTabs[0].click();
+        // 自动填充登录表单
+        document.getElementById("login-team-code").value = team_code;
+        document.getElementById("username").value = username;
+    } catch (error) {
+        alert("注册失败：" + error.message);
+    }
+});
 
 document.getElementById("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
