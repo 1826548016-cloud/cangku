@@ -27,12 +27,36 @@ const navButtons = document.querySelectorAll(".nav-btn");
 const pagePanels = document.querySelectorAll(".page-panel");
 const featureCards = document.querySelectorAll("[data-page-target]");
 const refreshButtons = document.querySelectorAll(".refresh-page-btn");
+const currentTimeLabel = document.getElementById("current-time");
 
 let currentRecordSearch = "";
 let currentPage = "home";
 let latestAnalytics = null;
 let currentProfile = null;
 const chartInstances = {};
+
+function formatNow(date) {
+    const pad = (value) => String(value).padStart(2, "0");
+    const year = date.getFullYear();
+    const month = pad(date.getMonth() + 1);
+    const day = pad(date.getDate());
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+    const seconds = pad(date.getSeconds());
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+function startClock() {
+    if (!currentTimeLabel) return;
+    const update = () => {
+        currentTimeLabel.textContent = formatNow(new Date());
+    };
+    update();
+    window.setInterval(update, 1000);
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) update();
+    });
+}
 
 function getToken() {
     return localStorage.getItem(accessTokenKey);
@@ -770,6 +794,7 @@ exportStockOutBtn.addEventListener("click", async () => {
 });
 
 window.addEventListener("load", async () => {
+    startClock();
     if (!getToken()) {
         setAuthState(false);
         return;

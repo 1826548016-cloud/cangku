@@ -103,6 +103,21 @@ body {
     color: rgba(255, 255, 255, 0.75);
 }
 
+.current-time {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.current-time strong {
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
 .sidebar-actions {
     margin-top: 24px;
     display: grid;
