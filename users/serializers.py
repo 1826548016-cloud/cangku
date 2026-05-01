@@ -1,6 +1,7 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.db import transaction
+from django.db.utils import OperationalError
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -73,36 +74,43 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if not team_code:
             raise serializers.ValidationError({"team_code": ["该字段是必填项。"]})
 
-        # 1. 验证团队是否存在
         try:
+            # 1. 验证团队是否存在
             team = Team.objects.get(code=team_code)
         except Team.DoesNotExist:
             raise serializers.ValidationError({"detail": "团队号不存在。"})
+        except OperationalError:
+            raise serializers.ValidationError({"detail": "数据库连接失败，请确认 MySQL 服务已启动。"})
 
-        # 2. 验证用户名和密码
-        from django.contrib.auth import authenticate
-        user = authenticate(username=username, password=password)
-        if user is None:
-            try:
-                user_obj = User.objects.get(username=username)
-            except User.DoesNotExist:
-                user_obj = None
-
-            if user_obj and user_obj.password and "$" not in user_obj.password:
-                if user_obj.password == password:
-                    user_obj.set_password(password)
-                    user_obj.save(update_fields=["password"])
-                    user = user_obj
-
+        try:
+            # 2. 验证用户名和密码
+            user = authenticate(username=username, password=password)
             if user is None:
-                raise serializers.ValidationError({"detail": "用户名或密码错误。"})
+                try:
+                    user_obj = User.objects.get(username=username)
+                except User.DoesNotExist:
+                    user_obj = None
+
+                if user_obj and user_obj.password and "$" not in user_obj.password:
+                    if user_obj.password == password:
+                        user_obj.set_password(password)
+                        user_obj.save(update_fields=["password"])
+                        user = user_obj
+
+                if user is None:
+                    raise serializers.ValidationError({"detail": "用户名或密码错误。"})
+        except OperationalError:
+            raise serializers.ValidationError({"detail": "数据库连接失败，请确认 MySQL 服务已启动。"})
 
         self.user = user
 
-        # 3. 验证用户是否属于该团队
-        profile = ensure_user_profile(user)
-        if profile.team != team:
-            raise serializers.ValidationError({"detail": f"用户不属于团队 {team_code}。"})
+        try:
+            # 3. 验证用户是否属于该团队
+            profile = ensure_user_profile(user)
+            if profile.team != team:
+                raise serializers.ValidationError({"detail": f"用户不属于团队 {team_code}。"})
+        except OperationalError:
+            raise serializers.ValidationError({"detail": "数据库连接失败，请确认 MySQL 服务已启动。"})
 
         # 4. 生成 Token 和 Session
         session_state, _ = UserSession.objects.select_for_update().get_or_create(user=user)

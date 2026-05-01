@@ -90,7 +90,12 @@ async function request(url, options = {}) {
 
     const response = await fetch(url, { ...options, headers });
     if (response.status === 401) {
-        const errorData = await response.json().catch(() => ({}));
+        let errorData = {};
+        try {
+            errorData = await response.clone().json();
+        } catch (e) {
+            errorData = {};
+        }
         const detail = errorData.detail || "";
         if (detail.includes("其他设备")) {
             handleForcedLogout(detail);
@@ -100,9 +105,23 @@ async function request(url, options = {}) {
         setAuthState(false);
         throw new Error("登录已过期，请重新登录。");
     }
-    const data = await response.json().catch(() => ({}));
+    let data = {};
+    let rawText = "";
+    try {
+        data = await response.clone().json();
+    } catch (e) {
+        data = {};
+        try {
+            rawText = await response.text();
+        } catch (e2) {
+            rawText = "";
+        }
+    }
     if (!response.ok) {
-        throw new Error(data.detail || JSON.stringify(data));
+        const fallbackMessage = rawText
+            ? rawText.slice(0, 300)
+            : `请求失败(${response.status})`;
+        throw new Error(data.detail || JSON.stringify(data) || fallbackMessage);
     }
     return data;
 }
