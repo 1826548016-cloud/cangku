@@ -1,115 +1,105 @@
-# 智能仓库管理系统（WMS）
+# 仓库管理系统（多团队隔离）
 
-# 本人大二软件工程，目前正在结合cursor等ai编程工具来学习，若有不足请受教
+这是一个基于 Django + DRF + JWT 的仓库管理系统，支持：
+本系统起初是想为我的家人开发，随后便结合trea一起打造，适合小规模公司仓库管理，水平差不多也就是中国大学生毕业实际水平吧，如果你有需要使用，可以在我的基础上继续修改。 
+- 团队号登录：同团队共享数据、不同团队数据隔离
+- 团队注册：创建团队 + 首个账号自动成为管理员
+- 账号管理：管理员可创建/删除成员账号
+- 操作日志：记录关键操作用于审计
 
-最近一次提交与2026年4月29日 
-等五一假期继续完善更新
+## 目录说明
 
+- `warehouse_system/`：项目配置（settings/urls/wsgi/asgi）
+- `users/`：团队、账号、登录、审计日志
+- `products/`：商品
+- `inventory/`：库存
+- `records/`：入库/出库记录（含导出）
+- `analytics_app/`：统计分析
+- `templates/`：前端页面模板
+- `static/`：静态资源（CSS/JS/echarts 等）
 
+## 环境要求
 
-项目更在更新目前有较大漏洞 不要直接采纳
+- Python 3.8+（建议 3.10+）
+- MySQL 5.7/8.0
 
-基于 Django、Django REST Framework、JWT 和 ECharts 的智能仓库管理系统，适用于商品、库存、出入库记录和数据分析的一体化管理。
-
-## 已实现功能
-
-超级管理员账号为111 zknu@@42zknu@@42
-
-- JWT 登录、刷新、当前用户信息获取
-- 单端登录控制，同一账号在其他设备登录后旧会话自动失效
-- 商品新增、修改、删除，支持商品图片上传与预览
-- 库存查询与预警值修改
-- 入库、出库登记
-- 出库前库存校验，防止负库存
-- 删除入库/出库记录时自动回滚库存
-- 出入库记录支持按 SKU、商品名称、备注搜索
-- 出入库记录 PDF 导出
-- 数据分析面板，包含近 7 天趋势、库存预警对比、分类占比、热销商品排行
-- 前端单页控制台，支持移动端访问
-- 当前登录用户动态水印
-
-## 技术栈
-
-- 后端：Django、Django REST Framework、Simple JWT
-- 数据库：MySQL
-- 前端：HTML、CSS、JavaScript、ECharts
-- 报表：ReportLab
-
-## 快速启动
+## 安装依赖
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
 pip install -r requirements.txt
-python manage.py migrate
-python manage.py createsuperuser
-python manage.py runserver
 ```
 
-浏览器访问 `http://127.0.0.1:8000/`，使用创建的账号登录。
+## 配置（推荐用 .env）
 
-## MySQL 配置
+项目会自动读取项目根目录下的 `.env` 文件（如果存在）。
 
-项目默认读取根目录 `.env` 文件中的数据库配置，示例：
+示例（按需修改）：
 
 ```env
+# 运行环境
+DEBUG=False
+DJANGO_SECRET_KEY=请换成你自己的随机长字符串
+ALLOWED_HOSTS=你的域名,你的服务器IP
+CSRF_TRUSTED_ORIGINS=https://你的域名,https://你的服务器IP
+
+# 数据库（MySQL）
 USE_MYSQL=True
+MYSQL_HOST=127.0.0.1
+MYSQL_PORT=3306
 MYSQL_DATABASE=warehouse_system
 MYSQL_USER=wms_user
 MYSQL_PASSWORD=123456
-MYSQL_HOST=127.0.0.1
-MYSQL_PORT=3306
+
+# 可选（HTTPS/反代场景）
+SECURE_SSL_REDIRECT=False
+SESSION_COOKIE_SECURE=True
+CSRF_COOKIE_SECURE=True
+SECURE_HSTS_SECONDS=0
+SECURE_HSTS_INCLUDE_SUBDOMAINS=False
+SECURE_HSTS_PRELOAD=False
+X_FRAME_OPTIONS=DENY
 ```
 
-请先在 MySQL 中创建数据库并确保用户有访问权限，然后执行：
+关键说明：
+
+- 线上务必 `DEBUG=False`，并设置 `DJANGO_SECRET_KEY`、`ALLOWED_HOSTS`。
+- 如果你使用域名 + HTTPS，建议设置 `CSRF_TRUSTED_ORIGINS`。
+
+## 初始化数据库
 
 ```bash
 python manage.py migrate
 ```
 
-如需参考，可复制 `.env.example` 为 `.env` 后再按本机环境修改。
+如需后台管理账号：
 
-## 主要接口
-
-### 认证
-
-- `POST /api/auth/login/`
-- `POST /api/auth/refresh/`
-- `GET /api/auth/me/`
-
-### 商品与库存
-
-- `GET|POST /api/products/`
-- `GET|PATCH|DELETE /api/products/<id>/`
-- `GET|PATCH /api/inventory/<id>/`
-
-### 出入库记录
-
-- `GET|POST /api/records/stockin/`
-- `GET|POST /api/records/stockout/`
-- `DELETE /api/records/stockin/<id>/`
-- `DELETE /api/records/stockout/<id>/`
-- `GET /api/records/stockin/export/pdf/`
-- `GET /api/records/stockout/export/pdf/`
-
-### 数据分析
-
-- `GET /api/analytics/`
-
-## 目录结构
-
-```text
-cangku/
-├── analytics_app/
-├── inventory/
-├── products/
-├── records/
-├── users/
-├── static/
-├── templates/
-├── media/
-├── .env.example
-├── manage.py
-└── requirements.txt
+```bash
+python manage.py createsuperuser
 ```
+
+## 本地启动
+
+```bash
+python manage.py runserver 0.0.0.0:8000
+```
+
+浏览器访问：
+
+- `http://127.0.0.1:8000/`（前端页面）
+- `http://127.0.0.1:8000/admin/`（Django 后台）
+
+## 登录与团队
+
+- 登录必须提供：团队号（team\_code）+ 用户名 + 密码
+- 注册团队：会创建一个新团队，并把第一个账号设置为管理员
+- 管理员可以在“账号管理”页面创建/删除成员账号
+
+## 主要接口（后端）
+
+- `POST /api/auth/register/`：注册团队 + 创建管理员账号
+- `POST /api/auth/login/`：登录（JWT），需携带 `team_code`
+- `POST /api/auth/refresh/`：刷新 token
+- `GET /api/auth/me/`：当前用户信息（含团队与管理员标识）
+- `GET/POST/DELETE /api/auth/team/subaccounts/`：团队成员管理（管理员权限）
+- `GET /api/auth/audit-logs/`：团队审计日志（最近 100 条）
 
