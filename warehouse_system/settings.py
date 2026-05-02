@@ -5,7 +5,6 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 def load_env_file():
     env_path = BASE_DIR / ".env"
     if not env_path.exists():
@@ -84,18 +83,19 @@ if USE_MYSQL:
         "default": {
             "ENGINE": "django.db.backends.mysql",
             "NAME": os.getenv("MYSQL_DATABASE", "warehouse_system"),
-            "USER": os.getenv("MYSQL_USER", "wms_user"),
-            "PASSWORD": os.getenv("MYSQL_PASSWORD", "123456"),
+            # 现在你的mysql里创建一个warehouse_system数据库，然后再创建一个用户
+            "USER": os.getenv("MYSQL_USER", "yourself"),
+            "PASSWORD": os.getenv("MYSQL_PASSWORD", "yourself"),
             "HOST": os.getenv("MYSQL_HOST", "127.0.0.1"),
             "PORT": os.getenv("MYSQL_PORT", "3306"),
-            "OPTIONS": {"charset": "utf8mb4"},
+            "OPTIONS": {"charset": "utf8mb4"}，
         }
     }
 else:
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "ENGINE": "django.db.backends.sqlite3"，
+            "NAME": BASE_DIR / "db.sqlite3"，
         }
     }
 
@@ -104,7 +104,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"}，
 ]
 
 
@@ -124,7 +124,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "users.authentication.SingleSessionJWTAuthentication",
+        "users.authentication.SingleSessionJWTAuthentication"，
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
